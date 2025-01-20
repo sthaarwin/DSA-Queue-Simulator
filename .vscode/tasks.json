@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "label": "build",
+    "type": "shell",
+    "command": "g++",
+    "args": [
+        "-Iinclude",       
+        "-Llib",           
+        "-o", "bin/main.exe",
+        "src/main.c",
+        "-lmingw32",
+        "-lSDL2main",
+        "-lSDL2"
+    ],
+    "group": {
+        "kind": "build",
+        "isDefault": true
+    },
+    "problemMatcher": ["$gcc"],
+    "detail": "Generated task for build"
+}
