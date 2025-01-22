@@ -7,7 +7,7 @@
         "-Iinclude",       
         "-Llib",           
         "-o", "bin/main.exe",
-        "src/main.c",
+        "src/*.c",
         "-lmingw32",
         "-lSDL2main",
         "-lSDL2"
