@@ -1,7 +1,63 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 #include "traffic_simulation.h"
+
+#define LANE_FILES_COUNT 4
+const char *laneFiles[LANE_FILES_COUNT] = {
+    "bin/lanea.txt",
+    "bin/laneb.txt",
+    "bin/lanec.txt",
+    "bin/laned.txt"};
+
+void createFileIfNotExists(const char *filename)
+{
+    FILE *file = fopen(filename, "a"); // Open for appending, creates file if it does not exist.
+    if (file)
+    {
+        fclose(file); // Close the file immediately.
+    }
+    else
+    {
+        perror("Failed to create lane file");
+    }
+}
+
+void loadVehiclesFromFile(int laneIndex)
+{
+    createFileIfNotExists(laneFiles[laneIndex]); // Ensure the file exists
+    FILE *file = fopen(laneFiles[laneIndex], "r");
+    if (!file)
+    {
+        perror("Failed to open lane file");
+        return;
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), file))
+    {
+        Vehicle vehicle;
+        sscanf(line, "%d,%d,%f", &vehicle.type, &vehicle.direction, &vehicle.speed);
+        vehicle.active = true;                    // Set vehicle as active
+        vehicle.state = STATE_MOVING;             // Set initial state
+        vehicle.turnDirection = TURN_NONE;        // Default to no turn
+        vehicle.turnAngle = 0.0f;                 // Initialize turn angle
+        vehicle.turnProgress = 0.0f;              // Initialize turn progress
+        vehicle.isInRightLane = true;             // Default to right lane
+        vehicle.rect.w = 20;                      // Default width
+        vehicle.rect.h = 30;                      // Default height
+        vehicle.x = 0;                            // Default x position
+        vehicle.y = 0;                            // Default y position
+        enqueue(&laneQueues[laneIndex], vehicle); // Add to queue
+    }
+
+    fclose(file);
+
+    // Clear file contents after reading
+    file = fopen(laneFiles[laneIndex], "w");
+    fclose(file);
+}
 
 void initializeSDL(SDL_Window **window, SDL_Renderer **renderer)
 {
@@ -63,39 +119,22 @@ int main(int argc, char *argv[])
 
     Uint32 lastVehicleSpawn = 0;
 
+    // Ensure lane files exist
+    for (int i = 0; i < LANE_FILES_COUNT; i++)
+    {
+        createFileIfNotExists(laneFiles[i]);
+    }
+
     while (running)
     {
         handleEvents(&running);
 
         // Spawn new vehicles
         Uint32 currentTime = SDL_GetTicks();
-        if (currentTime - lastVehicleSpawn > 200)
-        { // Spawn every 2 seconds
-            if (vehicleCount < MAX_VEHICLES)
-            {
-                // Randomly select a direction for the new vehicle
-                Direction spawnDirection = (Direction)(rand() % 4);
-
-                // Only spawn if queue isn't too long
-                if (laneQueues[spawnDirection].size < 10)
-                {
-                    Vehicle *newVehicle = createVehicle(spawnDirection);
-                    // Find empty slot in vehicles array
-                    for (int i = 0; i < MAX_VEHICLES; i++)
-                    {
-                        if (!vehicles[i].active)
-                        {
-                            vehicles[i] = *newVehicle;
-                            free(newVehicle);
-                            vehicleCount++;
-                            stats.totalVehicles++;
-                            break;
-                        }
-                    }
-                    lastVehicleSpawn = currentTime;
-                }
+       
+            for (int i = 0; i < LANE_FILES_COUNT; i++) {
+                loadVehiclesFromFile(i);
             }
-        }
 
         // Update vehicles
         for (int i = 0; i < MAX_VEHICLES; i++)
