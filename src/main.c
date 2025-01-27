@@ -69,41 +69,30 @@ int main(int argc, char *argv[])
 
         // Spawn new vehicles
         Uint32 currentTime = SDL_GetTicks();
-        if (currentTime - lastVehicleSpawn > 500)
+        if (currentTime - lastVehicleSpawn > 200)
         { // Spawn every 2 seconds
             if (vehicleCount < MAX_VEHICLES)
             {
-                // Find direction with shortest queue
-                int minQueueSize = laneQueues[0].size;
-                Direction spawnDirection = DIRECTION_NORTH;
-
-                for (int i = 1; i < 4; i++)
-                {
-                    if (laneQueues[i].size < minQueueSize)
-                    {
-                        minQueueSize = laneQueues[i].size;
-                        spawnDirection = (Direction)i;
-                    }
-                }
+                // Randomly select a direction for the new vehicle
+                Direction spawnDirection = (Direction)(rand() % 4);
 
                 // Only spawn if queue isn't too long
-                if (minQueueSize < 10)
+                if (laneQueues[spawnDirection].size < 10)
                 {
                     Vehicle *newVehicle = createVehicle(spawnDirection);
-                    // Find empty slot in vehicles array first
+                    // Find empty slot in vehicles array
                     for (int i = 0; i < MAX_VEHICLES; i++)
                     {
                         if (!vehicles[i].active)
                         {
                             vehicles[i] = *newVehicle;
-                            vehicles[i].active = true;
+                            free(newVehicle);
                             vehicleCount++;
                             stats.totalVehicles++;
-                            free(newVehicle);
-                            lastVehicleSpawn = currentTime;
                             break;
                         }
                     }
+                    lastVehicleSpawn = currentTime;
                 }
             }
         }

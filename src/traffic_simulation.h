@@ -58,6 +58,8 @@ typedef struct {
     float y;
     bool active;
     float turnAngle;  
+    bool isInRightLane;
+    bool turnProgress;
 } Vehicle;
 
 typedef struct {
