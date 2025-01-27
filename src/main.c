@@ -6,11 +6,7 @@
 void initializeSDL(SDL_Window **window, SDL_Renderer **renderer)
 {
     SDL_Init(SDL_INIT_VIDEO);
-    *window = SDL_CreateWindow("Traffic Simulation",
-                               SDL_WINDOWPOS_UNDEFINED,
-                               SDL_WINDOWPOS_UNDEFINED,
-                               WINDOW_WIDTH, WINDOW_HEIGHT,
-                               SDL_WINDOW_SHOWN);
+    *window = SDL_CreateWindow("Traffic Simulation", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     *renderer = SDL_CreateRenderer(*window, -1, SDL_RENDERER_ACCELERATED);
     SDL_SetRenderDrawColor(*renderer, 255, 255, 255, 255); // Set background color to white
 }
@@ -57,8 +53,13 @@ int main(int argc, char *argv[])
         .vehiclesPassed = 0,
         .totalVehicles = 0,
         .vehiclesPerMinute = 0,
-        .startTime = SDL_GetTicks()
-    };
+        .startTime = SDL_GetTicks()};
+
+    // Initialize queues
+    for (int i = 0; i < 4; i++)
+    {
+        initQueue(&laneQueues[i]);
+    }
 
     Uint32 lastVehicleSpawn = 0;
 
@@ -68,41 +69,53 @@ int main(int argc, char *argv[])
 
         // Spawn new vehicles
         Uint32 currentTime = SDL_GetTicks();
-        if (currentTime - lastVehicleSpawn > 1000) // Spawn every second
-        {
+        if (currentTime - lastVehicleSpawn > 500)
+        { // Spawn every 2 seconds
             if (vehicleCount < MAX_VEHICLES)
             {
-                Direction direction = (Direction)(rand() % 4);
-                Vehicle *newVehicle = createVehicle(direction);
+                // Find direction with shortest queue
+                int minQueueSize = laneQueues[0].size;
+                Direction spawnDirection = DIRECTION_NORTH;
 
-                // Find empty slot in vehicles array
-                for (int i = 0; i < MAX_VEHICLES; i++)
+                for (int i = 1; i < 4; i++)
                 {
-                    if (!vehicles[i].active)
+                    if (laneQueues[i].size < minQueueSize)
                     {
-                        vehicles[i] = *newVehicle;
-                        free(newVehicle);
-                        vehicleCount++;
-                        stats.totalVehicles++;
-                        break;
+                        minQueueSize = laneQueues[i].size;
+                        spawnDirection = (Direction)i;
                     }
                 }
 
-                lastVehicleSpawn = currentTime;
+                // Only spawn if queue isn't too long
+                if (minQueueSize < 10)
+                {
+                    Vehicle *newVehicle = createVehicle(spawnDirection);
+                    // Find empty slot in vehicles array first
+                    for (int i = 0; i < MAX_VEHICLES; i++)
+                    {
+                        if (!vehicles[i].active)
+                        {
+                            vehicles[i] = *newVehicle;
+                            vehicles[i].active = true;
+                            vehicleCount++;
+                            stats.totalVehicles++;
+                            free(newVehicle);
+                            lastVehicleSpawn = currentTime;
+                            break;
+                        }
+                    }
+                }
             }
         }
-
-        // Update traffic lights
-        updateTrafficLights(lights);
 
         // Update vehicles
         for (int i = 0; i < MAX_VEHICLES; i++)
         {
             if (vehicles[i].active)
             {
-                updateVehicle(&vehicles[i], vehicles, lights);
+                updateVehicle(&vehicles[i], lights);
 
-                // Check if vehicle passed through intersection
+                // Check if vehicle has passed through intersection
                 if (!vehicles[i].active)
                 {
                     stats.vehiclesPassed++;
@@ -110,6 +123,9 @@ int main(int argc, char *argv[])
                 }
             }
         }
+
+        // Update traffic lights
+        updateTrafficLights(lights);
 
         // Update statistics
         float minutes = (currentTime - stats.startTime) / 60000.0f;
