@@ -86,6 +86,35 @@ void handleEvents(bool *running)
     }
 }
 
+void processQueues(Vehicle *vehicles, int *vehicleCount)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if (!isQueueEmpty(&laneQueues[i]) && *vehicleCount < MAX_VEHICLES)
+        {
+            // Find empty slot in vehicles array
+            int emptySlot = -1;
+            for (int j = 0; j < MAX_VEHICLES; j++)
+            {
+                if (!vehicles[j].active)
+                {
+                    emptySlot = j;
+                    break;
+                }
+            }
+
+            if (emptySlot != -1)
+            {
+                // Dequeue vehicle and add to simulation
+                Vehicle queuedVehicle = dequeue(&laneQueues[i]);
+                vehicles[emptySlot] = queuedVehicle;
+                vehicles[emptySlot].active = true;
+                (*vehicleCount)++;
+            }
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     SDL_Window *window = NULL;
@@ -93,7 +122,6 @@ int main(int argc, char *argv[])
     bool running = true;
 
     srand(time(NULL));
-
     initializeSDL(&window, &renderer);
 
     // Initialize vehicles
@@ -117,24 +145,18 @@ int main(int argc, char *argv[])
         initQueue(&laneQueues[i]);
     }
 
-    Uint32 lastVehicleSpawn = 0;
-
-    // Ensure lane files exist
-    for (int i = 0; i < LANE_FILES_COUNT; i++)
-    {
-        createFileIfNotExists(laneFiles[i]);
-    }
-
     while (running)
     {
         handleEvents(&running);
 
-        // Spawn new vehicles
-        Uint32 currentTime = SDL_GetTicks();
-       
-            for (int i = 0; i < LANE_FILES_COUNT; i++) {
-                loadVehiclesFromFile(i);
-            }
+        // Load new vehicles from files
+        for (int i = 0; i < LANE_FILES_COUNT; i++)
+        {
+            loadVehiclesFromFile(i);
+        }
+
+        // Process queues and spawn vehicles
+        processQueues(vehicles, &vehicleCount);
 
         // Update vehicles
         for (int i = 0; i < MAX_VEHICLES; i++)
@@ -156,6 +178,7 @@ int main(int argc, char *argv[])
         updateTrafficLights(lights);
 
         // Update statistics
+        Uint32 currentTime = SDL_GetTicks();
         float minutes = (currentTime - stats.startTime) / 60000.0f;
         if (minutes > 0)
         {
@@ -167,7 +190,17 @@ int main(int argc, char *argv[])
         SDL_Delay(16); // Cap at ~60 FPS
     }
 
+    // Cleanup
     cleanupSDL(window, renderer);
+
+    // Free any remaining queue nodes
+    for (int i = 0; i < 4; i++)
+    {
+        while (!isQueueEmpty(&laneQueues[i]))
+        {
+            dequeue(&laneQueues[i]);
+        }
+    }
 
     return 0;
 }
