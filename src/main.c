@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     SDL_Renderer *renderer = NULL;
     bool running = true;
     Uint32 lastVehicleSpawn = 0;
-    const Uint32 SPAWN_INTERVAL = 2000; // Spawn a vehicle every 2 seconds
+    const Uint32 SPAWN_INTERVAL = 500; // Spawn a vehicle every 500ms
 
     srand(time(NULL));
 
