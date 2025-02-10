@@ -144,56 +144,65 @@ Vehicle *createVehicle(Direction direction)
     // Fixed spawn positions for each direction
     switch (direction)
     {
-    case DIRECTION_NORTH:                             // Spawns at bottom, moves up
-        vehicle->x = INTERSECTION_X - LANE_WIDTH / 2; // Left lane
-        if (rand() % 2)
-        { // Randomly choose right lane
-            vehicle->x += LANE_WIDTH;
+    case DIRECTION_NORTH: // Spawns at bottom, moves up
+        if (vehicle->turnDirection == TURN_RIGHT)
+        {
+            vehicle->x = INTERSECTION_X - LANE_WIDTH / 2 - 30;
+        }
+        else
+        {
+            vehicle->x = INTERSECTION_X - LANE_WIDTH / 2 + 10;
         }
         vehicle->y = WINDOW_HEIGHT - vehicle->rect.h;
-        vehicle->isInRightLane = (vehicle->x > INTERSECTION_X);
         break;
 
-    case DIRECTION_SOUTH:                             // Spawns at top, moves down
-        vehicle->x = INTERSECTION_X - LANE_WIDTH / 2; // Left lane
-        if (rand() % 2)
-        { // Randomly choose right lane
-            vehicle->x += LANE_WIDTH;
+    case DIRECTION_SOUTH: // Spawns at top, moves down
+        if (vehicle->turnDirection == TURN_RIGHT)
+        {
+            vehicle->x = INTERSECTION_X + 40;
+        }
+        else
+        {
+            vehicle->x = INTERSECTION_X + 10;
         }
         vehicle->y = 0;
-        vehicle->isInRightLane = (vehicle->x > INTERSECTION_X);
         break;
 
     case DIRECTION_EAST: // Spawns at left, moves right
-        vehicle->x = 0;
-        vehicle->y = INTERSECTION_Y - LANE_WIDTH / 2; // Top lane
-        if (rand() % 2)
-        { // Randomly choose bottom lane
-            vehicle->y += LANE_WIDTH;
+        if (vehicle->turnDirection == TURN_RIGHT)
+        {
+            vehicle->y = INTERSECTION_Y - LANE_WIDTH / 2 - 40 + 10;
         }
-        vehicle->isInRightLane = (vehicle->y > INTERSECTION_Y);
+        else
+        {
+            vehicle->y = INTERSECTION_Y - LANE_WIDTH / 2 + 10;
+        }
+        vehicle->x = 0;
         break;
 
     case DIRECTION_WEST: // Spawns at right, moves left
         vehicle->x = WINDOW_WIDTH - vehicle->rect.w;
-        vehicle->y = INTERSECTION_Y - LANE_WIDTH / 2; // Top lane
-        if (rand() % 2)
-        { // Randomly choose bottom lane
-            vehicle->y += LANE_WIDTH;
+        if (vehicle->turnDirection == TURN_RIGHT)
+        {
+            vehicle->y = INTERSECTION_Y + 40;
+        }
+        else
+        {
+            vehicle->y = INTERSECTION_Y ;
         }
         vehicle->isInRightLane = (vehicle->y > INTERSECTION_Y);
         break;
     }
 
     // Center vehicle in lane
-    if (direction == DIRECTION_NORTH || direction == DIRECTION_SOUTH)
-    {
-        vehicle->x += (LANE_WIDTH / 4 - vehicle->rect.w / 2); // Center in lane
-    }
-    else
-    {
-        vehicle->y += (LANE_WIDTH / 4 - vehicle->rect.h / 2); // Center in lane
-    }
+    // if (direction == DIRECTION_NORTH || direction == DIRECTION_SOUTH)
+    // {
+    //     vehicle->x += (LANE_WIDTH / 4 - vehicle->rect.w / 2); // Center in lane
+    // }
+    // else
+    // {
+    //     vehicle->y += (LANE_WIDTH / 4 - vehicle->rect.h / 2); // Center in lane
+    // }
 
     vehicle->rect.x = (int)vehicle->x;
     vehicle->rect.y = (int)vehicle->y;
