@@ -194,16 +194,6 @@ Vehicle *createVehicle(Direction direction)
         break;
     }
 
-    // Center vehicle in lane
-    // if (direction == DIRECTION_NORTH || direction == DIRECTION_SOUTH)
-    // {
-    //     vehicle->x += (LANE_WIDTH / 4 - vehicle->rect.w / 2); // Center in lane
-    // }
-    // else
-    // {
-    //     vehicle->y += (LANE_WIDTH / 4 - vehicle->rect.h / 2); // Center in lane
-    // }
-
     vehicle->rect.x = (int)vehicle->x;
     vehicle->rect.y = (int)vehicle->y;
 
@@ -228,26 +218,26 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
         stopLine = INTERSECTION_Y + LANE_WIDTH + 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
-            turnPoint = INTERSECTION_Y - LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_Y;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
         {
-            turnPoint = INTERSECTION_Y + LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_Y + 40 ;
         }
         else
         {
-            turnPoint = INTERSECTION_Y;
+            turnPoint =  INTERSECTION_Y - LANE_WIDTH / 2 + 10;
         }
         break;
     case DIRECTION_SOUTH:
         stopLine = INTERSECTION_Y - LANE_WIDTH - 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
-            turnPoint = INTERSECTION_Y + LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_Y ;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
         {
-            turnPoint = INTERSECTION_Y - LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_Y - LANE_WIDTH / 2 - 40 + 10;
         }
         else
         {
@@ -258,11 +248,11 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
         stopLine = INTERSECTION_X - LANE_WIDTH - 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
-            turnPoint = INTERSECTION_X + LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_X - LANE_WIDTH / 2 - 30;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
         {
-            turnPoint = INTERSECTION_X - LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_X - 40;
         }
         else
         {
@@ -273,11 +263,11 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
         stopLine = INTERSECTION_X + LANE_WIDTH + 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
-            turnPoint = INTERSECTION_X - LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_X - LANE_WIDTH / 2 + 10;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
         {
-            turnPoint = INTERSECTION_X + LANE_WIDTH / 4;
+            turnPoint = INTERSECTION_X + 40;
         }
         else
         {

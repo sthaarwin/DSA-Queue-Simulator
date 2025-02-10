@@ -67,12 +67,12 @@ g++ -o bin/generator src/generator.c src/traffic_simulation.c  -Iinclude -Llib -
 
 1. First, start the vehicle generator:
 ```bash
-./bin/generator
+./bin/generator.exe
 ```
 
 2. In a separate terminal, start the main simulation:
 ```bash
-./bin/main
+./bin/main.exe
 ```
 
 3. Watch as vehicles spawn and navigate through the intersection
