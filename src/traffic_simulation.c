@@ -4,8 +4,10 @@
 #include "traffic_simulation.h"
 
 // Global queues for lanes
-Queue laneQueues[4];         // Queues for lanes A, B, C, D
-int lanePriorities[4] = {0}; // Priority levels for lanes (0 = normal, 1 = high)
+Queue laneQueues[4];      
+int lanePriorities[4] = {0}; 
+LanePosition laneVehicles[4][MAX_VEHICLES];
+int vehiclesInLane[4] = {0};
 
 const SDL_Color VEHICLE_COLORS[] = {
     {0, 0, 255, 255}, // REGULAR_CAR: Blue
@@ -13,6 +15,12 @@ const SDL_Color VEHICLE_COLORS[] = {
     {0, 0, 128, 255}, // POLICE_CAR: Dark Blue
     {255, 69, 0, 255} // FIRE_TRUCK: Orange-Red
 };
+
+float getDistanceBetweenVehicles(Vehicle* v1, Vehicle* v2) {
+    float dx = v1->x - v2->x;
+    float dy = v1->y - v2->y;
+    return sqrt(dx * dx + dy * dy);
+}
 
 void initializeTrafficLights(TrafficLight *lights)
 {
@@ -251,11 +259,11 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
         stopLine = INTERSECTION_X - LANE_WIDTH - 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
-            vehicle->canSkipLight = true;
             turnPoint = INTERSECTION_X - LANE_WIDTH / 2 - 30;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
         {
+            vehicle->canSkipLight = true;
             turnPoint = INTERSECTION_X - 40;
         }
         else

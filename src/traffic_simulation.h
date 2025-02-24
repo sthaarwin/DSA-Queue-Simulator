@@ -43,6 +43,11 @@ typedef enum {
     GREEN
 } TrafficLightState;
 
+typedef struct {
+    float position;
+    Vehicle* vehicle;
+} LanePosition;
+
 #define TRAFFIC_LIGHT_WIDTH (LANE_WIDTH * 2)
 #define TRAFFIC_LIGHT_HEIGHT (LANE_WIDTH - LANE_WIDTH / 3)
 #define STOP_LINE_WIDTH 5
@@ -100,6 +105,7 @@ void updateVehicle(Vehicle* vehicle, TrafficLight* lights);
 void renderSimulation(SDL_Renderer* renderer, Vehicle* vehicles, TrafficLight* lights, Statistics* stats);
 void renderRoads(SDL_Renderer* renderer);
 void renderQueues(SDL_Renderer* renderer);
+float getDistanceBetweenVehicles(Vehicle* v1, Vehicle* v2);
 
 // Queue functions
 void initQueue(Queue* q);
