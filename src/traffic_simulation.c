@@ -100,6 +100,7 @@ Vehicle *createVehicle(Direction direction)
     }
 
     vehicle->active = true;
+    vehicle->canSkipLight = false; // Initialize canSkipLight to false
     // Set speed based on vehicle type
     switch (vehicle->type)
     {
@@ -188,7 +189,7 @@ Vehicle *createVehicle(Direction direction)
         }
         else
         {
-            vehicle->y = INTERSECTION_Y ;
+            vehicle->y = INTERSECTION_Y;
         }
         vehicle->isInRightLane = (vehicle->y > INTERSECTION_Y);
         break;
@@ -222,21 +223,23 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
         {
-            turnPoint = INTERSECTION_Y + 40 ;
+            vehicle->canSkipLight = true;
+            turnPoint = INTERSECTION_Y + 40;
         }
         else
         {
-            turnPoint =  INTERSECTION_Y - LANE_WIDTH / 2 + 10;
+            turnPoint = INTERSECTION_Y - LANE_WIDTH / 2 + 10;
         }
         break;
     case DIRECTION_SOUTH:
         stopLine = INTERSECTION_Y - LANE_WIDTH - 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
-            turnPoint = INTERSECTION_Y ;
+            turnPoint = INTERSECTION_Y;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
         {
+            vehicle->canSkipLight = true;
             turnPoint = INTERSECTION_Y - LANE_WIDTH / 2 - 40 + 10;
         }
         else
@@ -248,6 +251,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
         stopLine = INTERSECTION_X - LANE_WIDTH - 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
+            vehicle->canSkipLight = true;
             turnPoint = INTERSECTION_X - LANE_WIDTH / 2 - 30;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
@@ -263,6 +267,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
         stopLine = INTERSECTION_X + LANE_WIDTH + 40;
         if (vehicle->turnDirection == TURN_LEFT)
         {
+            vehicle->canSkipLight = true;
             turnPoint = INTERSECTION_X - LANE_WIDTH / 2 + 10;
         }
         else if (vehicle->turnDirection == TURN_RIGHT)
@@ -277,29 +282,33 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
     }
 
     // Check if vehicle should stop based on traffic lights
-    if (!hasEmergencyPriority)
+    if (!hasEmergencyPriority && !vehicle->canSkipLight)
     {
         switch (vehicle->direction)
         {
         case DIRECTION_NORTH:
             shouldStop = (vehicle->y > stopLine - stopDistance) &&
                          (vehicle->y < stopLine) &&
-                         lights[DIRECTION_NORTH].state == RED;
+                         lights[DIRECTION_NORTH].state == RED &&
+                         !vehicle->canSkipLight;
             break;
         case DIRECTION_SOUTH:
             shouldStop = (vehicle->y < stopLine + stopDistance) &&
                          (vehicle->y > stopLine) &&
-                         lights[DIRECTION_SOUTH].state == RED;
+                         lights[DIRECTION_SOUTH].state == RED &&
+                         !vehicle->canSkipLight;
             break;
         case DIRECTION_EAST:
             shouldStop = (vehicle->x < stopLine + stopDistance) &&
                          (vehicle->x > stopLine) &&
-                         lights[DIRECTION_EAST].state == RED;
+                         lights[DIRECTION_EAST].state == RED &&
+                         !vehicle->canSkipLight;
             break;
         case DIRECTION_WEST:
             shouldStop = (vehicle->x > stopLine - stopDistance) &&
                          (vehicle->x < stopLine) &&
-                         lights[DIRECTION_WEST].state == RED;
+                         lights[DIRECTION_WEST].state == RED &&
+                         !vehicle->canSkipLight;
             break;
         }
     }

@@ -3,25 +3,30 @@
 #include <time.h>
 #include "traffic_simulation.h"
 
-void writeVehicleToFile(FILE *file, Vehicle *vehicle) {
-    fprintf(file, "%f %f %d %d %d %d %d\n", 
-            vehicle->x, vehicle->y, 
-            vehicle->direction, 
-            vehicle->type, 
-            vehicle->turnDirection, 
-            vehicle->state, 
-            vehicle->speed);
+void writeVehicleToFile(FILE *file, Vehicle *vehicle)
+{
+    fprintf(file, "%f %f %d %d %d %d %d %d\n",
+            vehicle->x, vehicle->y,
+            vehicle->direction,
+            vehicle->type,
+            vehicle->turnDirection,
+            vehicle->state,
+            vehicle->speed,
+            vehicle->canSkipLight);
 }
 
-int SDL_main(int argc, char *argv[]) {
+int SDL_main(int argc, char *argv[])
+{
     srand(time(NULL));
     FILE *file = fopen("bin/vehicles.txt", "w");
-    if (!file) {
+    if (!file)
+    {
         perror("Failed to open vehicles.txt");
         return 1;
     }
 
-    while (1) {
+    while (1)
+    {
         // Generate a new vehicle
         Direction spawnDirection = (Direction)(rand() % 4);
         Vehicle *newVehicle = createVehicle(spawnDirection);

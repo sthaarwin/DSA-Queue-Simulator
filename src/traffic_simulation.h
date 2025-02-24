@@ -60,6 +60,7 @@ typedef struct {
     float turnAngle;  
     bool isInRightLane;
     bool turnProgress;
+    bool canSkipLight; // New flag to indicate if the vehicle can skip red lights
 } Vehicle;
 
 typedef struct {
