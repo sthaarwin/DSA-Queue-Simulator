@@ -11,6 +11,10 @@
 #define INTERSECTION_X (WINDOW_WIDTH / 2)
 #define INTERSECTION_Y (WINDOW_HEIGHT / 2)
 
+#define TRAFFIC_LIGHT_WIDTH (LANE_WIDTH * 2)
+#define TRAFFIC_LIGHT_HEIGHT (LANE_WIDTH - LANE_WIDTH / 3)
+#define STOP_LINE_WIDTH 5
+
 typedef enum {
     DIRECTION_NORTH,
     DIRECTION_SOUTH,
@@ -44,15 +48,6 @@ typedef enum {
 } TrafficLightState;
 
 typedef struct {
-    float position;
-    Vehicle* vehicle;
-} LanePosition;
-
-#define TRAFFIC_LIGHT_WIDTH (LANE_WIDTH * 2)
-#define TRAFFIC_LIGHT_HEIGHT (LANE_WIDTH - LANE_WIDTH / 3)
-#define STOP_LINE_WIDTH 5
-
-typedef struct {
     SDL_Rect rect;
     VehicleType type;
     Direction direction;
@@ -65,7 +60,7 @@ typedef struct {
     float turnAngle;  
     bool isInRightLane;
     bool turnProgress;
-    bool canSkipLight; // New flag to indicate if the vehicle can skip red lights
+    bool canSkipLight; 
 } Vehicle;
 
 typedef struct {
@@ -94,6 +89,11 @@ typedef struct {
     int size;
 } Queue;
 
+typedef struct {
+    float position;
+    Vehicle* vehicle;
+} LanePosition;
+
 // Declare laneQueues as an external variable
 extern Queue laneQueues[4];
 
@@ -106,6 +106,8 @@ void renderSimulation(SDL_Renderer* renderer, Vehicle* vehicles, TrafficLight* l
 void renderRoads(SDL_Renderer* renderer);
 void renderQueues(SDL_Renderer* renderer);
 float getDistanceBetweenVehicles(Vehicle* v1, Vehicle* v2);
+int getVehicleLane(Vehicle* vehicle);
+void updateLanePositions(Vehicle* vehicles);
 
 // Queue functions
 void initQueue(Queue* q);

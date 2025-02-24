@@ -4,8 +4,8 @@
 #include "traffic_simulation.h"
 
 // Global queues for lanes
-Queue laneQueues[4];      
-int lanePriorities[4] = {0}; 
+Queue laneQueues[4];
+int lanePriorities[4] = {0};
 LanePosition laneVehicles[4][MAX_VEHICLES];
 int vehiclesInLane[4] = {0};
 
@@ -16,10 +16,23 @@ const SDL_Color VEHICLE_COLORS[] = {
     {255, 69, 0, 255} // FIRE_TRUCK: Orange-Red
 };
 
-float getDistanceBetweenVehicles(Vehicle* v1, Vehicle* v2) {
+float getDistanceBetweenVehicles(Vehicle *v1, Vehicle *v2)
+{
     float dx = v1->x - v2->x;
     float dy = v1->y - v2->y;
     return sqrt(dx * dx + dy * dy);
+}
+
+int getVehicleLane(Vehicle *vehicle)
+{
+    if (vehicle->direction == DIRECTION_NORTH || vehicle->direction == DIRECTION_SOUTH)
+    {
+        return (vehicle->x < INTERSECTION_X) ? 0 : 1;
+    }
+    else
+    {
+        return (vehicle->y < INTERSECTION_Y) ? 2 : 3;
+    }
 }
 
 void initializeTrafficLights(TrafficLight *lights)
@@ -48,36 +61,59 @@ void initializeTrafficLights(TrafficLight *lights)
 
 void updateTrafficLights(TrafficLight *lights)
 {
-    Uint32 currentTicks = SDL_GetTicks();
     static Uint32 lastUpdateTicks = 0;
+    Uint32 currentTicks = SDL_GetTicks();
 
-    if (currentTicks - lastUpdateTicks >= 5000)
-    { // Change lights every 5 seconds
+    // Check if it's time to update lights
+    if (currentTicks - lastUpdateTicks >= 3000)
+    { // Reduced timing to 3 seconds
         lastUpdateTicks = currentTicks;
 
-        // Check for high-priority lanes
+        // Count vehicles waiting at each light
+        int waitingVehicles[4] = {0};
         for (int i = 0; i < 4; i++)
         {
-            if (laneQueues[i].size > 10)
+            waitingVehicles[i] = vehiclesInLane[i];
+        }
+
+        // Find the lane with most waiting vehicles
+        int maxWaitingLane = 0;
+        for (int i = 1; i < 4; i++)
+        {
+            if (waitingVehicles[i] > waitingVehicles[maxWaitingLane])
             {
-                lanePriorities[i] = 1; // Set high priority
-            }
-            else if (laneQueues[i].size < 5)
-            {
-                lanePriorities[i] = 0; // Reset to normal priority
+                maxWaitingLane = i;
             }
         }
 
-        // Toggle lights based on priority
-        for (int i = 0; i < 4; i++)
+        // If any lane has more than 5 vehicles, prioritize it
+        if (waitingVehicles[maxWaitingLane] >= 5)
         {
-            if (lanePriorities[i] == 1)
+            // Set the busy lane to green
+            lights[maxWaitingLane].state = GREEN;
+
+            // Set perpendicular lanes to red
+            for (int i = 0; i < 4; i++)
             {
-                lights[i].state = GREEN; // Give green light to high-priority lane
+                if (i != maxWaitingLane)
+                {
+                    if ((maxWaitingLane < 2 && i < 2) || (maxWaitingLane >= 2 && i >= 2))
+                    {
+                        lights[i].state = GREEN; // Parallel lanes get green
+                    }
+                    else
+                    {
+                        lights[i].state = RED; // Perpendicular lanes get red
+                    }
+                }
             }
-            else
+        }
+        else
+        {
+            // Normal alternating pattern
+            for (int i = 0; i < 4; i++)
             {
-                lights[i].state = (lights[i].state == RED) ? GREEN : RED; // Toggle lights
+                lights[i].state = (lights[i].state == RED) ? GREEN : RED;
             }
         }
     }
@@ -218,6 +254,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
     bool shouldStop = false;
     float stopDistance = 40.0f;
     float turnPoint = 0;
+    const float MIN_VEHICLE_DISTANCE = 40.0f;
     bool hasEmergencyPriority = (vehicle->type != REGULAR_CAR);
 
     // Calculate stop line based on direction
@@ -225,438 +262,513 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
     {
     case DIRECTION_NORTH:
         stopLine = INTERSECTION_Y + LANE_WIDTH + 40;
-        if (vehicle->turnDirection == TURN_LEFT)
+        // Check for vehicles ahead in the same lane
+        for (int i = 0; i < vehiclesInLane[getVehicleLane(vehicle)]; i++)
         {
-            turnPoint = INTERSECTION_Y;
+            Vehicle *other = laneVehicles[getVehicleLane(vehicle)][i].vehicle;
+            if (other != vehicle && other->direction == vehicle->direction)
+            {
+                float distance = vehicle->y - other->y;
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                {
+                    shouldStop = true;
+                    stopLine = other->y + other->rect.h + 5;
+                    break;
+                }
+            }
         }
-        else if (vehicle->turnDirection == TURN_RIGHT)
+
+        switch (vehicle->turnDirection)
         {
-            vehicle->canSkipLight = true;
-            turnPoint = INTERSECTION_Y + 40;
-        }
-        else
-        {
-            turnPoint = INTERSECTION_Y - LANE_WIDTH / 2 + 10;
+        case TURN_LEFT:
+            turnPoint = INTERSECTION_X - LANE_WIDTH - 40;
+            break;
+        case TURN_RIGHT:
+            turnPoint = INTERSECTION_X + LANE_WIDTH + 40;
+            break;
         }
         break;
     case DIRECTION_SOUTH:
         stopLine = INTERSECTION_Y - LANE_WIDTH - 40;
-        if (vehicle->turnDirection == TURN_LEFT)
+        for (int i = 0; i < vehiclesInLane[getVehicleLane(vehicle)]; i++)
         {
-            turnPoint = INTERSECTION_Y;
+            Vehicle *other = laneVehicles[getVehicleLane(vehicle)][i].vehicle;
+            if (other != vehicle && other->direction == vehicle->direction)
+            {
+                float distance = other->y - vehicle->y;
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                {
+                    shouldStop = true;
+                    stopLine = other->y - vehicle->rect.h - 5;
+                    break;
+                }
+            }
         }
-        else if (vehicle->turnDirection == TURN_RIGHT)
+        switch (vehicle->turnDirection)
         {
-            vehicle->canSkipLight = true;
-            turnPoint = INTERSECTION_Y - LANE_WIDTH / 2 - 40 + 10;
-        }
-        else
-        {
-            turnPoint = INTERSECTION_Y;
+        case TURN_LEFT:
+            turnPoint = INTERSECTION_X + LANE_WIDTH + 40;
+            break;
+        case TURN_RIGHT:
+            turnPoint = INTERSECTION_X - LANE_WIDTH - 40;
+            break;
         }
         break;
     case DIRECTION_EAST:
         stopLine = INTERSECTION_X - LANE_WIDTH - 40;
-        if (vehicle->turnDirection == TURN_LEFT)
+        for (int i = 0; i < vehiclesInLane[getVehicleLane(vehicle)]; i++)
         {
-            turnPoint = INTERSECTION_X - LANE_WIDTH / 2 - 30;
+            Vehicle *other = laneVehicles[getVehicleLane(vehicle)][i].vehicle;
+            if (other != vehicle && other->direction == vehicle->direction)
+            {
+                float distance = other->x - vehicle->x;
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                {
+                    shouldStop = true;
+                    stopLine = other->x - vehicle->rect.w - 5;
+                    break;
+                }
+            }
         }
-        else if (vehicle->turnDirection == TURN_RIGHT)
+        switch (vehicle->turnDirection)
         {
-            vehicle->canSkipLight = true;
-            turnPoint = INTERSECTION_X - 40;
-        }
-        else
-        {
-            turnPoint = INTERSECTION_X;
+        case TURN_LEFT:
+            turnPoint = INTERSECTION_Y + LANE_WIDTH + 40;
+            break;
+        case TURN_RIGHT:
+            turnPoint = INTERSECTION_Y - LANE_WIDTH - 40;
+            break;
         }
         break;
     case DIRECTION_WEST:
         stopLine = INTERSECTION_X + LANE_WIDTH + 40;
-        if (vehicle->turnDirection == TURN_LEFT)
+        for (int i = 0; i < vehiclesInLane[getVehicleLane(vehicle)]; i++)
         {
-            vehicle->canSkipLight = true;
-            turnPoint = INTERSECTION_X - LANE_WIDTH / 2 + 10;
-        }
-        else if (vehicle->turnDirection == TURN_RIGHT)
-        {
-            turnPoint = INTERSECTION_X + 40;
-        }
-        else
-        {
-            turnPoint = INTERSECTION_X;
-        }
-        break;
-    }
-
-    // Check if vehicle should stop based on traffic lights
-    if (!hasEmergencyPriority && !vehicle->canSkipLight)
-    {
-        switch (vehicle->direction)
-        {
-        case DIRECTION_NORTH:
-            shouldStop = (vehicle->y > stopLine - stopDistance) &&
-                         (vehicle->y < stopLine) &&
-                         lights[DIRECTION_NORTH].state == RED &&
-                         !vehicle->canSkipLight;
-            break;
-        case DIRECTION_SOUTH:
-            shouldStop = (vehicle->y < stopLine + stopDistance) &&
-                         (vehicle->y > stopLine) &&
-                         lights[DIRECTION_SOUTH].state == RED &&
-                         !vehicle->canSkipLight;
-            break;
-        case DIRECTION_EAST:
-            shouldStop = (vehicle->x < stopLine + stopDistance) &&
-                         (vehicle->x > stopLine) &&
-                         lights[DIRECTION_EAST].state == RED &&
-                         !vehicle->canSkipLight;
-            break;
-        case DIRECTION_WEST:
-            shouldStop = (vehicle->x > stopLine - stopDistance) &&
-                         (vehicle->x < stopLine) &&
-                         lights[DIRECTION_WEST].state == RED &&
-                         !vehicle->canSkipLight;
-            break;
-        }
-    }
-
-    // Update vehicle state based on stopping conditions
-    if (shouldStop)
-    {
-        vehicle->state = STATE_STOPPING;
-        vehicle->speed *= 0.8f; // Increased deceleration
-        if (vehicle->speed < 0.1f)
-        {
-            vehicle->state = STATE_STOPPED;
-            vehicle->speed = 0;
-        }
-    }
-    else if (vehicle->state == STATE_STOPPED && !shouldStop)
-    {
-        vehicle->state = STATE_MOVING;
-        // Reset speed based on vehicle type
-        switch (vehicle->type)
-        {
-        case AMBULANCE:
-        case POLICE_CAR:
-            vehicle->speed = 4.0f;
-            break;
-        case FIRE_TRUCK:
-            vehicle->speed = 3.5f;
-            break;
-        default:
-            vehicle->speed = 2.0f;
-        }
-    }
-
-    // Decrease speed as vehicle approaches turn point
-    if (vehicle->state == STATE_MOVING && vehicle->turnDirection != TURN_NONE)
-    {
-        float distanceToTurnPoint = 0;
-        switch (vehicle->direction)
-        {
-        case DIRECTION_NORTH:
-        case DIRECTION_SOUTH:
-            distanceToTurnPoint = fabs(vehicle->y - turnPoint);
-            break;
-        case DIRECTION_EAST:
-        case DIRECTION_WEST:
-            distanceToTurnPoint = fabs(vehicle->x - turnPoint);
-            break;
-        }
-
-        if (distanceToTurnPoint < stopDistance)
-        {
-            vehicle->speed *= 1.0f;
-            if (vehicle->speed < 0.5f)
+            Vehicle *other = laneVehicles[getVehicleLane(vehicle)][i].vehicle;
+            if (other != vehicle && other->direction == vehicle->direction)
             {
-                vehicle->speed = 0.5f;
+                float distance = vehicle->x - other->x;
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                {
+                    shouldStop = true;
+                    stopLine = other->x + other->rect.w + 5;
+                    break;
+                }
+            }
+        }
+        switch (vehicle->turnDirection)
+        {
+        case TURN_LEFT:
+            turnPoint = INTERSECTION_Y - LANE_WIDTH - 40;
+            break;
+        case TURN_RIGHT:
+            turnPoint = INTERSECTION_Y + LANE_WIDTH + 40;
+            break;
+        }
+        // Check if vehicle should stop based on traffic lights
+        if (!shouldStop && !vehicle->canSkipLight)
+        {
+            switch (vehicle->direction)
+            {
+            case DIRECTION_NORTH:
+                shouldStop = (vehicle->y > stopLine - stopDistance) &&
+                             (vehicle->y < stopLine) &&
+                             lights[DIRECTION_NORTH].state == RED;
+                break;
+            case DIRECTION_SOUTH:
+                shouldStop = (vehicle->y < stopLine + stopDistance) &&
+                             (vehicle->y > stopLine) &&
+                             lights[DIRECTION_SOUTH].state == RED;
+                break;
+            case DIRECTION_EAST:
+                shouldStop = (vehicle->x < stopLine + stopDistance) &&
+                             (vehicle->x > stopLine) &&
+                             lights[DIRECTION_EAST].state == RED;
+                break;
+            case DIRECTION_WEST:
+                shouldStop = (vehicle->x > stopLine - stopDistance) &&
+                             (vehicle->x < stopLine) &&
+                             lights[DIRECTION_WEST].state == RED;
+                break;
+            }
+        }
+
+        // Update vehicle state based on stopping conditions
+        if (shouldStop)
+        {
+            vehicle->state = STATE_STOPPING;
+            vehicle->speed *= 0.8f; // Increased deceleration
+            if (vehicle->speed < 0.1f)
+            {
+                vehicle->state = STATE_STOPPED;
+                vehicle->speed = 0;
+            }
+        }
+        else if (vehicle->state == STATE_STOPPED && !shouldStop)
+        {
+            vehicle->state = STATE_MOVING;
+            // Reset speed based on vehicle type
+            switch (vehicle->type)
+            {
+            case AMBULANCE:
+            case POLICE_CAR:
+                vehicle->speed = 4.0f;
+                break;
+            case FIRE_TRUCK:
+                vehicle->speed = 3.5f;
+                break;
+            default:
+                vehicle->speed = 2.0f;
+            }
+        }
+
+        // Decrease speed as vehicle approaches turn point
+        if (vehicle->state == STATE_MOVING && vehicle->turnDirection != TURN_NONE)
+        {
+            float distanceToTurnPoint = 0;
+            switch (vehicle->direction)
+            {
+            case DIRECTION_NORTH:
+            case DIRECTION_SOUTH:
+                distanceToTurnPoint = fabs(vehicle->y - turnPoint);
+                break;
+            case DIRECTION_EAST:
+            case DIRECTION_WEST:
+                distanceToTurnPoint = fabs(vehicle->x - turnPoint);
+                break;
+            }
+
+            if (distanceToTurnPoint < stopDistance)
+            {
+                vehicle->speed *= 1.0f;
+                if (vehicle->speed < 0.5f)
+                {
+                    vehicle->speed = 0.5f;
+                }
+            }
+        }
+
+        // Check if at turning point
+        bool atTurnPoint = false;
+        switch (vehicle->direction)
+        {
+        case DIRECTION_NORTH:
+            atTurnPoint = vehicle->y <= turnPoint;
+            break;
+        case DIRECTION_SOUTH:
+            atTurnPoint = vehicle->y >= turnPoint;
+            break;
+        case DIRECTION_EAST:
+            atTurnPoint = vehicle->x >= turnPoint;
+            break;
+        case DIRECTION_WEST:
+            atTurnPoint = vehicle->x <= turnPoint;
+            break;
+        }
+
+        // Start turning if at turn point
+        if (atTurnPoint && vehicle->turnDirection != TURN_NONE &&
+            vehicle->state != STATE_TURNING && vehicle->state != STATE_STOPPED)
+        {
+            vehicle->state = STATE_TURNING;
+            vehicle->turnAngle = 0.0f;
+            vehicle->turnProgress = 0.0f;
+        }
+
+        // Movement logic
+        float moveSpeed = vehicle->speed;
+        if (vehicle->state == STATE_MOVING || vehicle->state == STATE_STOPPING)
+        {
+            switch (vehicle->direction)
+            {
+            case DIRECTION_NORTH:
+                vehicle->y -= moveSpeed;
+                break;
+            case DIRECTION_SOUTH:
+                vehicle->y += moveSpeed;
+                break;
+            case DIRECTION_EAST:
+                vehicle->x += moveSpeed;
+                break;
+            case DIRECTION_WEST:
+                vehicle->x -= moveSpeed;
+                break;
+            }
+        }
+        else if (vehicle->state == STATE_TURNING)
+        {
+            // Calculate turn angle based on vehicle type
+            float turnSpeed = 1.0f;
+            switch (vehicle->type)
+            {
+            case AMBULANCE:
+            case POLICE_CAR:
+                turnSpeed = 2.0f;
+                break;
+            case FIRE_TRUCK:
+                turnSpeed = 1.5f;
+                break;
+            default:
+                turnSpeed = 1.0f;
+            }
+
+            vehicle->turnAngle += turnSpeed;
+            vehicle->turnProgress = vehicle->turnAngle / 90.0f;
+            if (vehicle->turnAngle >= 90.0f)
+            {
+                vehicle->state = STATE_MOVING;
+                vehicle->turnAngle = 0.0f;
+                vehicle->turnProgress = 0.0f;
+                vehicle->isInRightLane = !vehicle->isInRightLane;
+            }
+
+            // Calculate new position based on turn angle
+            float turnRadius = 0.5f;
+            float turnCenterX = 0;
+            float turnCenterY = 0;
+            float turnCenter = 15;
+            switch (vehicle->direction)
+            {
+            case DIRECTION_NORTH:
+                turnCenterX = vehicle->x + (vehicle->isInRightLane ? turnCenter : -turnCenter);
+                turnCenterY = vehicle->y;
+                ;
+                break;
+            case DIRECTION_SOUTH:
+                turnCenterX = vehicle->x + (vehicle->isInRightLane ? -turnCenter : turnCenter);
+                turnCenterY = vehicle->y;
+                break;
+            case DIRECTION_EAST:
+                turnCenterX = vehicle->x;
+                turnCenterY = vehicle->y + (!vehicle->isInRightLane ? turnCenter : -turnCenter);
+                break;
+            case DIRECTION_WEST:
+                turnCenterX = vehicle->x;
+                turnCenterY = vehicle->y + (!vehicle->isInRightLane ? -turnCenter : turnCenter);
+                break;
+            }
+
+            float radians = vehicle->turnAngle * M_PI / 180.0f;
+            switch (vehicle->direction)
+            {
+            case DIRECTION_NORTH:
+                vehicle->x = turnCenterX + turnRadius * sin(radians);
+                vehicle->y = turnCenterY - turnRadius * cos(radians);
+                break;
+            case DIRECTION_SOUTH:
+                vehicle->x = turnCenterX - turnRadius * sin(radians);
+                vehicle->y = turnCenterY + turnRadius * cos(radians);
+                break;
+            case DIRECTION_EAST:
+                vehicle->x = turnCenterX + turnRadius * cos(radians);
+                vehicle->y = turnCenterY + turnRadius * sin(radians);
+                break;
+            case DIRECTION_WEST:
+                vehicle->x = turnCenterX - turnRadius * cos(radians);
+                vehicle->y = turnCenterY - turnRadius * sin(radians);
+                break;
+            }
+        }
+
+        // Update rectangle position
+        vehicle->rect.x = (int)vehicle->x;
+        vehicle->rect.y = (int)vehicle->y;
+
+        // Check if vehicle has left the screen
+        if (vehicle->x < -100 || vehicle->x > WINDOW_WIDTH + 100 ||
+            vehicle->y < -100 || vehicle->y > WINDOW_HEIGHT + 100)
+        {
+            vehicle->active = false;
+        }
+    }
+
+    void updateLanePositions(Vehicle * vehicles)
+    {
+        // Reset lane tracking
+        for (int i = 0; i < 4; i++)
+        {
+            vehiclesInLane[i] = 0;
+        }
+
+        // Update lane positions for active vehicles
+        for (int i = 0; i < MAX_VEHICLES; i++)
+        {
+            if (vehicles[i].active)
+            {
+                int lane = getVehicleLane(&vehicles[i]);
+                float pos;
+
+                // Calculate position along the lane
+                switch (vehicles[i].direction)
+                {
+                case DIRECTION_NORTH:
+                    pos = vehicles[i].y;
+                    break;
+                case DIRECTION_SOUTH:
+                    pos = -vehicles[i].y;
+                    break;
+                case DIRECTION_EAST:
+                    pos = -vehicles[i].x;
+                    break;
+                case DIRECTION_WEST:
+                    pos = vehicles[i].x;
+                    break;
+                }
+
+                laneVehicles[lane][vehiclesInLane[lane]].position = pos;
+                laneVehicles[lane][vehiclesInLane[lane]].vehicle = &vehicles[i];
+                vehiclesInLane[lane]++;
             }
         }
     }
 
-    // Check if at turning point
-    bool atTurnPoint = false;
-    switch (vehicle->direction)
+    void renderRoads(SDL_Renderer * renderer)
     {
-    case DIRECTION_NORTH:
-        atTurnPoint = vehicle->y <= turnPoint;
-        break;
-    case DIRECTION_SOUTH:
-        atTurnPoint = vehicle->y >= turnPoint;
-        break;
-    case DIRECTION_EAST:
-        atTurnPoint = vehicle->x >= turnPoint;
-        break;
-    case DIRECTION_WEST:
-        atTurnPoint = vehicle->x <= turnPoint;
-        break;
+        SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255); // Gray color for roads
+
+        // Draw the intersection
+        SDL_Rect intersection = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH, LANE_WIDTH * 2, LANE_WIDTH * 2};
+        SDL_RenderFillRect(renderer, &intersection);
+
+        // Draw main roads
+        SDL_Rect verticalRoad1 = {INTERSECTION_X - LANE_WIDTH, 0, LANE_WIDTH * 2, INTERSECTION_Y - LANE_WIDTH};
+        SDL_Rect verticalRoad2 = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y + LANE_WIDTH, LANE_WIDTH * 2, WINDOW_HEIGHT - INTERSECTION_Y - LANE_WIDTH};
+        SDL_Rect horizontalRoad1 = {0, INTERSECTION_Y - LANE_WIDTH, INTERSECTION_X - LANE_WIDTH, LANE_WIDTH * 2};
+        SDL_Rect horizontalRoad2 = {INTERSECTION_X + LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH, WINDOW_WIDTH - INTERSECTION_X - LANE_WIDTH, LANE_WIDTH * 2};
+        SDL_RenderFillRect(renderer, &verticalRoad1);
+        SDL_RenderFillRect(renderer, &verticalRoad2);
+        SDL_RenderFillRect(renderer, &horizontalRoad1);
+        SDL_RenderFillRect(renderer, &horizontalRoad2);
+
+        // Draw lane dividers
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        for (int i = 0; i < WINDOW_HEIGHT; i += 40)
+        {
+            if (i < INTERSECTION_Y - LANE_WIDTH || i > INTERSECTION_Y + LANE_WIDTH)
+            {
+                SDL_Rect laneDivider1 = {INTERSECTION_X - LANE_WIDTH / 2 - 1, i, 2, 20};
+                SDL_Rect laneDivider2 = {INTERSECTION_X + LANE_WIDTH / 2 - 1, i, 2, 20};
+                SDL_RenderFillRect(renderer, &laneDivider1);
+                SDL_RenderFillRect(renderer, &laneDivider2);
+            }
+        }
+        for (int i = 0; i < WINDOW_WIDTH; i += 40)
+        {
+            if (i < INTERSECTION_X - LANE_WIDTH || i > INTERSECTION_X + LANE_WIDTH)
+            {
+                SDL_Rect laneDivider1 = {i, INTERSECTION_Y - LANE_WIDTH / 2 - 1, 20, 2};
+                SDL_Rect laneDivider2 = {i, INTERSECTION_Y + LANE_WIDTH / 2 - 1, 20, 2};
+                SDL_RenderFillRect(renderer, &laneDivider1);
+                SDL_RenderFillRect(renderer, &laneDivider2);
+            }
+        }
+
+        // Add stop lines
+        SDL_Rect northStop = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH - STOP_LINE_WIDTH, LANE_WIDTH * 2, STOP_LINE_WIDTH};
+        SDL_Rect southStop = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y + LANE_WIDTH, LANE_WIDTH * 2, STOP_LINE_WIDTH};
+        SDL_Rect eastStop = {INTERSECTION_X + LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH, STOP_LINE_WIDTH, LANE_WIDTH * 2};
+        SDL_Rect westStop = {INTERSECTION_X - LANE_WIDTH - STOP_LINE_WIDTH, INTERSECTION_Y - LANE_WIDTH, STOP_LINE_WIDTH, LANE_WIDTH * 2};
+        SDL_RenderFillRect(renderer, &northStop);
+        SDL_RenderFillRect(renderer, &southStop);
+        SDL_RenderFillRect(renderer, &eastStop);
+        SDL_RenderFillRect(renderer, &westStop);
     }
 
-    // Start turning if at turn point
-    if (atTurnPoint && vehicle->turnDirection != TURN_NONE &&
-        vehicle->state != STATE_TURNING && vehicle->state != STATE_STOPPED)
+    void renderQueues(SDL_Renderer * renderer)
     {
-        vehicle->state = STATE_TURNING;
-        vehicle->turnAngle = 0.0f;
-        vehicle->turnProgress = 0.0f;
-    }
-
-    // Movement logic
-    float moveSpeed = vehicle->speed;
-    if (vehicle->state == STATE_MOVING || vehicle->state == STATE_STOPPING)
-    {
-        switch (vehicle->direction)
+        for (int i = 0; i < 4; i++)
         {
-        case DIRECTION_NORTH:
-            vehicle->y -= moveSpeed;
-            break;
-        case DIRECTION_SOUTH:
-            vehicle->y += moveSpeed;
-            break;
-        case DIRECTION_EAST:
-            vehicle->x += moveSpeed;
-            break;
-        case DIRECTION_WEST:
-            vehicle->x -= moveSpeed;
-            break;
-        }
-    }
-    else if (vehicle->state == STATE_TURNING)
-    {
-        // Calculate turn angle based on vehicle type
-        float turnSpeed = 1.0f;
-        switch (vehicle->type)
-        {
-        case AMBULANCE:
-        case POLICE_CAR:
-            turnSpeed = 2.0f;
-            break;
-        case FIRE_TRUCK:
-            turnSpeed = 1.5f;
-            break;
-        default:
-            turnSpeed = 1.0f;
-        }
-
-        vehicle->turnAngle += turnSpeed;
-        vehicle->turnProgress = vehicle->turnAngle / 90.0f;
-        if (vehicle->turnAngle >= 90.0f)
-        {
-            vehicle->state = STATE_MOVING;
-            vehicle->turnAngle = 0.0f;
-            vehicle->turnProgress = 0.0f;
-            vehicle->isInRightLane = !vehicle->isInRightLane;
-        }
-
-        // Calculate new position based on turn angle
-        float turnRadius = 0.5f;
-        float turnCenterX = 0;
-        float turnCenterY = 0;
-        float turnCenter = 15;
-        switch (vehicle->direction)
-        {
-        case DIRECTION_NORTH:
-            turnCenterX = vehicle->x + (vehicle->isInRightLane ? turnCenter : -turnCenter);
-            turnCenterY = vehicle->y;
-            ;
-            break;
-        case DIRECTION_SOUTH:
-            turnCenterX = vehicle->x + (vehicle->isInRightLane ? -turnCenter : turnCenter);
-            turnCenterY = vehicle->y;
-            break;
-        case DIRECTION_EAST:
-            turnCenterX = vehicle->x;
-            turnCenterY = vehicle->y + (!vehicle->isInRightLane ? turnCenter : -turnCenter);
-            break;
-        case DIRECTION_WEST:
-            turnCenterX = vehicle->x;
-            turnCenterY = vehicle->y + (!vehicle->isInRightLane ? -turnCenter : turnCenter);
-            break;
-        }
-
-        float radians = vehicle->turnAngle * M_PI / 180.0f;
-        switch (vehicle->direction)
-        {
-        case DIRECTION_NORTH:
-            vehicle->x = turnCenterX + turnRadius * sin(radians);
-            vehicle->y = turnCenterY - turnRadius * cos(radians);
-            break;
-        case DIRECTION_SOUTH:
-            vehicle->x = turnCenterX - turnRadius * sin(radians);
-            vehicle->y = turnCenterY + turnRadius * cos(radians);
-            break;
-        case DIRECTION_EAST:
-            vehicle->x = turnCenterX + turnRadius * cos(radians);
-            vehicle->y = turnCenterY + turnRadius * sin(radians);
-            break;
-        case DIRECTION_WEST:
-            vehicle->x = turnCenterX - turnRadius * cos(radians);
-            vehicle->y = turnCenterY - turnRadius * sin(radians);
-            break;
+            int x = 10 + i * 200; // Adjust position for each lane
+            int y = 10;
+            Node *current = laneQueues[i].front;
+            while (current != NULL)
+            {
+                SDL_Rect vehicleRect = {x, y, 30, 30};
+                SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255); // Blue color for vehicles
+                SDL_RenderFillRect(renderer, &vehicleRect);
+                y += 40; // Move down for the next vehicle
+                current = current->next;
+            }
         }
     }
 
-    // Update rectangle position
-    vehicle->rect.x = (int)vehicle->x;
-    vehicle->rect.y = (int)vehicle->y;
-
-    // Check if vehicle has left the screen
-    if (vehicle->x < -100 || vehicle->x > WINDOW_WIDTH + 100 ||
-        vehicle->y < -100 || vehicle->y > WINDOW_HEIGHT + 100)
+    void renderSimulation(SDL_Renderer * renderer, Vehicle * vehicles, TrafficLight * lights, Statistics * stats)
     {
-        vehicle->active = false;
-    }
-}
+        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Brighter background color
+        SDL_RenderClear(renderer);
 
-void renderRoads(SDL_Renderer *renderer)
-{
-    SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255); // Gray color for roads
+        // Render roads
+        renderRoads(renderer);
 
-    // Draw the intersection
-    SDL_Rect intersection = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH, LANE_WIDTH * 2, LANE_WIDTH * 2};
-    SDL_RenderFillRect(renderer, &intersection);
-
-    // Draw main roads
-    SDL_Rect verticalRoad1 = {INTERSECTION_X - LANE_WIDTH, 0, LANE_WIDTH * 2, INTERSECTION_Y - LANE_WIDTH};
-    SDL_Rect verticalRoad2 = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y + LANE_WIDTH, LANE_WIDTH * 2, WINDOW_HEIGHT - INTERSECTION_Y - LANE_WIDTH};
-    SDL_Rect horizontalRoad1 = {0, INTERSECTION_Y - LANE_WIDTH, INTERSECTION_X - LANE_WIDTH, LANE_WIDTH * 2};
-    SDL_Rect horizontalRoad2 = {INTERSECTION_X + LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH, WINDOW_WIDTH - INTERSECTION_X - LANE_WIDTH, LANE_WIDTH * 2};
-    SDL_RenderFillRect(renderer, &verticalRoad1);
-    SDL_RenderFillRect(renderer, &verticalRoad2);
-    SDL_RenderFillRect(renderer, &horizontalRoad1);
-    SDL_RenderFillRect(renderer, &horizontalRoad2);
-
-    // Draw lane dividers
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    for (int i = 0; i < WINDOW_HEIGHT; i += 40)
-    {
-        if (i < INTERSECTION_Y - LANE_WIDTH || i > INTERSECTION_Y + LANE_WIDTH)
+        // Render traffic lights
+        for (int i = 0; i < 4; i++)
         {
-            SDL_Rect laneDivider1 = {INTERSECTION_X - LANE_WIDTH / 2 - 1, i, 2, 20};
-            SDL_Rect laneDivider2 = {INTERSECTION_X + LANE_WIDTH / 2 - 1, i, 2, 20};
-            SDL_RenderFillRect(renderer, &laneDivider1);
-            SDL_RenderFillRect(renderer, &laneDivider2);
+            SDL_SetRenderDrawColor(renderer, 64, 64, 64, 255); // Dark gray for housing
+            SDL_RenderFillRect(renderer, &lights[i].position);
+            SDL_SetRenderDrawColor(renderer, (lights[i].state == RED) ? 255 : 0, (lights[i].state == GREEN) ? 255 : 0, 0, 255);
+            SDL_RenderFillRect(renderer, &lights[i].position);
         }
-    }
-    for (int i = 0; i < WINDOW_WIDTH; i += 40)
-    {
-        if (i < INTERSECTION_X - LANE_WIDTH || i > INTERSECTION_X + LANE_WIDTH)
+
+        // Render vehicles
+        for (int i = 0; i < MAX_VEHICLES; i++)
         {
-            SDL_Rect laneDivider1 = {i, INTERSECTION_Y - LANE_WIDTH / 2 - 1, 20, 2};
-            SDL_Rect laneDivider2 = {i, INTERSECTION_Y + LANE_WIDTH / 2 - 1, 20, 2};
-            SDL_RenderFillRect(renderer, &laneDivider1);
-            SDL_RenderFillRect(renderer, &laneDivider2);
+            if (vehicles[i].active)
+            {
+                SDL_SetRenderDrawColor(renderer, VEHICLE_COLORS[vehicles[i].type].r, VEHICLE_COLORS[vehicles[i].type].g, VEHICLE_COLORS[vehicles[i].type].b, VEHICLE_COLORS[vehicles[i].type].a);
+                SDL_RenderFillRect(renderer, &vehicles[i].rect);
+            }
         }
+
+        // Render queues
+        renderQueues(renderer);
+
+        SDL_RenderPresent(renderer);
     }
 
-    // Add stop lines
-    SDL_Rect northStop = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH - STOP_LINE_WIDTH, LANE_WIDTH * 2, STOP_LINE_WIDTH};
-    SDL_Rect southStop = {INTERSECTION_X - LANE_WIDTH, INTERSECTION_Y + LANE_WIDTH, LANE_WIDTH * 2, STOP_LINE_WIDTH};
-    SDL_Rect eastStop = {INTERSECTION_X + LANE_WIDTH, INTERSECTION_Y - LANE_WIDTH, STOP_LINE_WIDTH, LANE_WIDTH * 2};
-    SDL_Rect westStop = {INTERSECTION_X - LANE_WIDTH - STOP_LINE_WIDTH, INTERSECTION_Y - LANE_WIDTH, STOP_LINE_WIDTH, LANE_WIDTH * 2};
-    SDL_RenderFillRect(renderer, &northStop);
-    SDL_RenderFillRect(renderer, &southStop);
-    SDL_RenderFillRect(renderer, &eastStop);
-    SDL_RenderFillRect(renderer, &westStop);
-}
-
-void renderQueues(SDL_Renderer *renderer)
-{
-    for (int i = 0; i < 4; i++)
+    // Queue functions
+    void initQueue(Queue * q)
     {
-        int x = 10 + i * 200; // Adjust position for each lane
-        int y = 10;
-        Node *current = laneQueues[i].front;
-        while (current != NULL)
+        q->front = q->rear = NULL;
+        q->size = 0;
+    }
+
+    void enqueue(Queue * q, Vehicle vehicle)
+    {
+        Node *newNode = (Node *)malloc(sizeof(Node));
+        newNode->vehicle = vehicle;
+        newNode->next = NULL;
+        if (q->rear == NULL)
         {
-            SDL_Rect vehicleRect = {x, y, 30, 30};
-            SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255); // Blue color for vehicles
-            SDL_RenderFillRect(renderer, &vehicleRect);
-            y += 40; // Move down for the next vehicle
-            current = current->next;
+            q->front = q->rear = newNode;
         }
-    }
-}
-
-void renderSimulation(SDL_Renderer *renderer, Vehicle *vehicles, TrafficLight *lights, Statistics *stats)
-{
-    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Brighter background color
-    SDL_RenderClear(renderer);
-
-    // Render roads
-    renderRoads(renderer);
-
-    // Render traffic lights
-    for (int i = 0; i < 4; i++)
-    {
-        SDL_SetRenderDrawColor(renderer, 64, 64, 64, 255); // Dark gray for housing
-        SDL_RenderFillRect(renderer, &lights[i].position);
-        SDL_SetRenderDrawColor(renderer, (lights[i].state == RED) ? 255 : 0, (lights[i].state == GREEN) ? 255 : 0, 0, 255);
-        SDL_RenderFillRect(renderer, &lights[i].position);
-    }
-
-    // Render vehicles
-    for (int i = 0; i < MAX_VEHICLES; i++)
-    {
-        if (vehicles[i].active)
+        else
         {
-            SDL_SetRenderDrawColor(renderer, VEHICLE_COLORS[vehicles[i].type].r, VEHICLE_COLORS[vehicles[i].type].g, VEHICLE_COLORS[vehicles[i].type].b, VEHICLE_COLORS[vehicles[i].type].a);
-            SDL_RenderFillRect(renderer, &vehicles[i].rect);
+            q->rear->next = newNode;
+            q->rear = newNode;
         }
+        q->size++;
     }
 
-    // Render queues
-    renderQueues(renderer);
-
-    SDL_RenderPresent(renderer);
-}
-
-// Queue functions
-void initQueue(Queue *q)
-{
-    q->front = q->rear = NULL;
-    q->size = 0;
-}
-
-void enqueue(Queue *q, Vehicle vehicle)
-{
-    Node *newNode = (Node *)malloc(sizeof(Node));
-    newNode->vehicle = vehicle;
-    newNode->next = NULL;
-    if (q->rear == NULL)
+    Vehicle dequeue(Queue * q)
     {
-        q->front = q->rear = newNode;
+        if (q->front == NULL)
+        {
+            Vehicle emptyVehicle = {0};
+            return emptyVehicle;
+        }
+        Node *temp = q->front;
+        Vehicle vehicle = temp->vehicle;
+        q->front = q->front->next;
+        if (q->front == NULL)
+        {
+            q->rear = NULL;
+        }
+        free(temp);
+        q->size--;
+        return vehicle;
     }
-    else
-    {
-        q->rear->next = newNode;
-        q->rear = newNode;
-    }
-    q->size++;
-}
 
-Vehicle dequeue(Queue *q)
-{
-    if (q->front == NULL)
+    int isQueueEmpty(Queue * q)
     {
-        Vehicle emptyVehicle = {0};
-        return emptyVehicle;
+        return q->front == NULL;
     }
-    Node *temp = q->front;
-    Vehicle vehicle = temp->vehicle;
-    q->front = q->front->next;
-    if (q->front == NULL)
-    {
-        q->rear = NULL;
-    }
-    free(temp);
-    q->size--;
-    return vehicle;
-}
-
-int isQueueEmpty(Queue *q)
-{
-    return q->front == NULL;
-}
