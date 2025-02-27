@@ -61,59 +61,136 @@ void initializeTrafficLights(TrafficLight *lights)
 
 void updateTrafficLights(TrafficLight *lights)
 {
-    static Uint32 lastUpdateTicks = 0;
+    static Uint32 lastStateChangeTicks = 0;
+    static int currentPhase = 0;
+    static bool priorityMode = false;
+    static int priorityLane = -1;
+    static Uint32 priorityStartTime = 0;
     Uint32 currentTicks = SDL_GetTicks();
 
-    // Check if it's time to update lights
-    if (currentTicks - lastUpdateTicks >= 3000)
-    { // Reduced timing to 3 seconds
-        lastUpdateTicks = currentTicks;
+    // Check for priority conditions (special vehicles or congestion)
+    int priorityLaneCandidate = -1;
+    bool hasSpecialVehicle = false;
+    int maxWaitingVehicles = 0;
 
-        // Count vehicles waiting at each light
-        int waitingVehicles[4] = {0};
-        for (int i = 0; i < 4; i++)
+    // First pass: check for special vehicles in each lane
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < vehiclesInLane[i]; j++)
         {
-            waitingVehicles[i] = vehiclesInLane[i];
+            Vehicle *vehicle = laneVehicles[i][j].vehicle;
+            if (vehicle && (vehicle->type == AMBULANCE || vehicle->type == POLICE_CAR || vehicle->type == FIRE_TRUCK))
+            {
+                hasSpecialVehicle = true;
+                priorityLaneCandidate = i;
+                // Allow emergency vehicles to pass red lights
+                vehicle->canSkipLight = true;
+                break;
+            }
+        }
+        if (hasSpecialVehicle)
+            break; // Once we find a special vehicle, no need to check other lanes
+
+        // Track the lane with the most vehicles for congestion detection
+        if (vehiclesInLane[i] > maxWaitingVehicles)
+        {
+            maxWaitingVehicles = vehiclesInLane[i];
+            priorityLaneCandidate = i;
+        }
+    }
+
+    // Determine if we should enter or maintain priority mode
+    if (hasSpecialVehicle || (maxWaitingVehicles > 5 && !priorityMode))
+    {
+        priorityMode = true;
+        priorityLane = priorityLaneCandidate;
+        priorityStartTime = currentTicks;
+
+        // Fix: explicitly set lights based on direction rather than using modulo
+        // This ensures correct pairing of traffic lights
+        if (priorityLane == 0 || priorityLane == 1)
+        { // North or South lane has priority
+            // Give green to North-South, red to East-West
+            lights[DIRECTION_NORTH].state = GREEN;
+            lights[DIRECTION_SOUTH].state = GREEN;
+            lights[DIRECTION_EAST].state = RED;
+            lights[DIRECTION_WEST].state = RED;
+        }
+        else
+        { // East or West lane has priority
+            // Give green to East-West, red to North-South
+            lights[DIRECTION_NORTH].state = RED;
+            lights[DIRECTION_SOUTH].state = RED;
+            lights[DIRECTION_EAST].state = GREEN;
+            lights[DIRECTION_WEST].state = GREEN;
         }
 
-        // Find the lane with most waiting vehicles
-        int maxWaitingLane = 0;
-        for (int i = 1; i < 4; i++)
+        printf("Priority mode activated at %d ms. Lane %d prioritized. Reason: %s\n",
+               currentTicks, priorityLane, hasSpecialVehicle ? "Emergency Vehicle" : "Congestion");
+        lastStateChangeTicks = currentTicks; // Reset the state change timer
+    }
+    // Exit priority mode after 10 seconds if no special vehicles remain
+    else if (priorityMode && currentTicks - priorityStartTime >= 10000)
+    {
+        bool stillHasSpecialVehicle = false;
+
+        // Check if special vehicles are still present in the priority lane
+        for (int j = 0; j < vehiclesInLane[priorityLane]; j++)
         {
-            if (waitingVehicles[i] > waitingVehicles[maxWaitingLane])
+            Vehicle *vehicle = laneVehicles[priorityLane][j].vehicle;
+            if (vehicle && (vehicle->type == AMBULANCE || vehicle->type == POLICE_CAR || vehicle->type == FIRE_TRUCK))
             {
-                maxWaitingLane = i;
+                stillHasSpecialVehicle = true;
+                break;
             }
         }
 
-        // If any lane has more than 5 vehicles, prioritize it
-        if (waitingVehicles[maxWaitingLane] >= 5)
+        if (!stillHasSpecialVehicle)
         {
-            // Set the busy lane to green
-            lights[maxWaitingLane].state = GREEN;
-
-            // Set perpendicular lanes to red
-            for (int i = 0; i < 4; i++)
-            {
-                if (i != maxWaitingLane)
-                {
-                    if ((maxWaitingLane < 2 && i < 2) || (maxWaitingLane >= 2 && i >= 2))
-                    {
-                        lights[i].state = GREEN; // Parallel lanes get green
-                    }
-                    else
-                    {
-                        lights[i].state = RED; // Perpendicular lanes get red
-                    }
-                }
-            }
+            priorityMode = false;
+            printf("Priority mode deactivated at %d ms. Returning to normal cycle.\n", currentTicks);
         }
         else
         {
-            // Normal alternating pattern
-            for (int i = 0; i < 4; i++)
+            // Extend priority mode
+            priorityStartTime = currentTicks;
+        }
+    }
+
+    // Normal traffic light cycle if not in priority mode
+    if (!priorityMode && currentTicks - lastStateChangeTicks >= 5000)
+    {
+        // Toggle between phases (0 = N/S green, E/W red; 1 = N/S red, E/W green)
+        currentPhase = 1 - currentPhase;
+
+        if (currentPhase == 0)
+        { // North/South green, East/West red
+            lights[DIRECTION_NORTH].state = GREEN;
+            lights[DIRECTION_SOUTH].state = GREEN;
+            lights[DIRECTION_EAST].state = RED;
+            lights[DIRECTION_WEST].state = RED;
+        }
+        else
+        { // North/South red, East/West green
+            lights[DIRECTION_NORTH].state = RED;
+            lights[DIRECTION_SOUTH].state = RED;
+            lights[DIRECTION_EAST].state = GREEN;
+            lights[DIRECTION_WEST].state = GREEN;
+        }
+
+        lastStateChangeTicks = currentTicks;
+        printf("State changed at %d ms. Phase: %d, Reason: Normal Cycle\n", currentTicks, currentPhase);
+    }
+
+    // Reset canSkipLight flag for non-emergency vehicles
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < vehiclesInLane[i]; j++)
+        {
+            Vehicle *vehicle = laneVehicles[i][j].vehicle;
+            if (vehicle && vehicle->type == REGULAR_CAR)
             {
-                lights[i].state = (lights[i].state == RED) ? GREEN : RED;
+                vehicle->canSkipLight = false;
             }
         }
     }
@@ -406,7 +483,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
             vehicle->speed = 0;
         }
     }
-    
+
     else if (vehicle->state == STATE_STOPPED && !shouldStop)
     {
         vehicle->state = STATE_MOVING;
@@ -502,7 +579,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
     {
         // Calculate turn angle based on vehicle type
         float turnSpeed = 1.0f;
-       
+
         vehicle->turnAngle += turnSpeed;
         vehicle->turnProgress = vehicle->turnAngle / 90.0f;
         if (vehicle->turnAngle >= 90.0f)
