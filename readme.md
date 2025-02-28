@@ -8,11 +8,13 @@ A real-time traffic intersection simulation that demonstrates queue data structu
 
 - Real-time traffic simulation at a 4-way intersection
 - Multiple vehicle types (regular cars, ambulances, police cars, fire trucks)
-- Dynamic traffic light system
+- Dynamic traffic light system with priority management
 - Queue-based traffic management
 - Priority handling for emergency vehicles
+- Special conditions for regular vehicles to skip red lights in certain situations
 - Vehicle turning mechanics (left, right, straight)
 - Visual representation of traffic flow
+- Congestion detection and management
 
 ## Prerequisites
 
@@ -35,10 +37,14 @@ To run this simulation, you need:
 ## Project Structure
 
 ```
-DSA-Queue-Simulator/
+Traffic-Simulation/
 ├── include/          # Header files
 ├── lib/             # Library files
 ├── src/             # Source files
+│   ├── main.c             # Main entry point
+│   ├── traffic_simulation.h    # Header definitions
+│   ├── traffic_simulation.c    # Implementation
+│   └── generator.c       # Vehicle generator
 ├── bin/             # Executable output
 └── README.md
 ```
@@ -47,8 +53,8 @@ DSA-Queue-Simulator/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/sthaarwin/DSA-Queue-Simulator.git
-cd DSA-Queue-Simulator
+git clone https://github.com/yourusername/Traffic-Simulation.git
+cd Traffic-Simulation
 ```
 
 2. Compile both programs:
@@ -87,7 +93,7 @@ The simulation consists of two separate programs:
 1. **Generator (generator.exe)**: 
    - Generates vehicles with random properties
    - Writes vehicle data to a file for the main program to read
-   - Spawns new vehicles every 500 miliseconds
+   - Spawns new vehicles every 500 milliseconds
 
 2. **Main Simulation (main.exe)**:
    - Reads vehicle data from the generator
@@ -108,6 +114,10 @@ The simulation implements several key traffic management features:
 2. **Priority Handling**: Emergency vehicles (ambulances, police cars, fire trucks) get priority over regular vehicles.
 3. **Traffic Light Cycles**: Traffic lights automatically cycle between red and green states.
 4. **Turn Management**: Vehicles can turn left, right, or go straight through the intersection.
+5. **Red Light Skipping**:
+   - Emergency vehicles can always skip red lights
+   - Right-turning vehicles can skip red lights in most situations
+   - Regular vehicles can skip red lights under certain conditions (excessive wait time)
 
 ### Code Structure
 
@@ -142,10 +152,20 @@ typedef enum {
 } VehicleState;
 ```
 
+### Special Traffic Rules
+
+The simulation implements realistic traffic rules including:
+
+1. **Emergency Vehicle Priority**: Ambulances, police cars, and fire trucks automatically trigger green lights and can bypass red lights.
+2. **Right Turn on Red**: Vehicles turning right can generally proceed even when the light is red (as in many real-world jurisdictions).
+3. **Congestion Management**: If a lane becomes congested (more than 5 vehicles), the system prioritizes that lane.
+4. **Wait Time Management**: Regular vehicles that have been waiting too long at a red light may eventually proceed (simulating real-world driver behavior).
+
 ## Controls
 
 - The simulation runs automatically without user input
 - Close the window to exit the program
+
 
 ## Contributing
 
@@ -160,23 +180,23 @@ typedef enum {
 1. SDL2 Documentation: [https://wiki.libsdl.org/](https://wiki.libsdl.org/)
 2. Queue Data Structure: Introduction to Algorithms, CLRS (Cormen, Leiserson, Rivest, Stein)
 3. Traffic Flow Theory: Highway Capacity Manual (Transportation Research Board)
+4. Intersection Management Algorithms: [IEEE Intelligent Transportation Systems](https://www.computer.org/csdl/proceedings-article/ic3/2017/08284361/12OmNx0RIRe)
 
 ## Technical Documentation
 
 For detailed technical documentation about the implementation:
 
-1. **Vehicle Generation**: Vehicles are spawned at regular intervals (every 2 seconds) at the edges of the screen.
-2. **Traffic Light System**: Uses a timer-based system with priority adjustments based on queue lengths.
-3. **Collision Avoidance**: Vehicles maintain safe distances and respond to traffic signals.
+1. **Vehicle Generation**: Vehicles are spawned at regular intervals with randomized properties.
+2. **Traffic Light System**: Uses a timer-based system with priority adjustments based on queue lengths and emergency vehicles.
+3. **Collision Avoidance**: Vehicles maintain safe distances and respond to traffic signals and other vehicles.
 4. **Queue Management**: Each lane maintains its own queue, with priority handling for emergency vehicles.
-
+5. **Red Light Skipping Logic**: The `canVehicleSkipLight()` function determines when a non-emergency vehicle can proceed through a red light based on:
+   - Wait time at the intersection
+   - Type of turn being made
+   - Presence of other vehicles
 
 ## Acknowledgments
 
 - SDL2 development team
 - Traffic simulation research community
 - Contributors and testers
-
-
-
-
