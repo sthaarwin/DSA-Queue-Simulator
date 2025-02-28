@@ -199,4 +199,3 @@ For detailed technical documentation about the implementation:
 
 - SDL2 development team
 - Traffic simulation research community
-- Contributors and testers
