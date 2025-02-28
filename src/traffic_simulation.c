@@ -183,17 +183,17 @@ void updateTrafficLights(TrafficLight *lights)
     }
 
     // Reset canSkipLight flag for non-emergency vehicles
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < vehiclesInLane[i]; j++)
-        {
-            Vehicle *vehicle = laneVehicles[i][j].vehicle;
-            if (vehicle && vehicle->type == REGULAR_CAR)
-            {
-                vehicle->canSkipLight = false;
-            }
-        }
-    }
+    // for (int i = 0; i < 4; i++)
+    // {
+    //     for (int j = 0; j < vehiclesInLane[i]; j++)
+    //     {
+    //         Vehicle *vehicle = laneVehicles[i][j].vehicle;
+    //         if (vehicle && vehicle->type == REGULAR_CAR)
+    //         {
+    //             vehicle->canSkipLight = false;
+    //         }
+    //     }
+    // }
 }
 
 Vehicle *createVehicle(Direction direction)
@@ -269,6 +269,7 @@ Vehicle *createVehicle(Direction direction)
     case DIRECTION_NORTH: // Spawns at bottom, moves up
         if (vehicle->turnDirection == TURN_RIGHT)
         {
+            vehicle->canSkipLight = true;
             vehicle->x = INTERSECTION_X - LANE_WIDTH / 2 - 30;
         }
         else
@@ -281,6 +282,7 @@ Vehicle *createVehicle(Direction direction)
     case DIRECTION_SOUTH: // Spawns at top, moves down
         if (vehicle->turnDirection == TURN_RIGHT)
         {
+            vehicle->canSkipLight = true;
             vehicle->x = INTERSECTION_X + 40;
         }
         else
@@ -293,6 +295,7 @@ Vehicle *createVehicle(Direction direction)
     case DIRECTION_EAST: // Spawns at left, moves right
         if (vehicle->turnDirection == TURN_RIGHT)
         {
+            vehicle->canSkipLight = true;
             vehicle->y = INTERSECTION_Y - LANE_WIDTH / 2 - 40 + 10;
         }
         else
@@ -306,6 +309,7 @@ Vehicle *createVehicle(Direction direction)
         vehicle->x = WINDOW_WIDTH - vehicle->rect.w;
         if (vehicle->turnDirection == TURN_RIGHT)
         {
+            vehicle->canSkipLight = true;
             vehicle->y = INTERSECTION_Y + 40;
         }
         else
@@ -346,7 +350,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
             if (other != vehicle && other->direction == vehicle->direction)
             {
                 float distance = vehicle->y - other->y;
-                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE && !vehicle->canSkipLight)
                 {
                     shouldStop = true;
                     stopLine = other->y + other->rect.h + 5;
@@ -373,7 +377,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
             if (other != vehicle && other->direction == vehicle->direction)
             {
                 float distance = other->y - vehicle->y;
-                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE && !vehicle->canSkipLight)
                 {
                     shouldStop = true;
                     stopLine = other->y - vehicle->rect.h - 5;
@@ -399,7 +403,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
             if (other != vehicle && other->direction == vehicle->direction)
             {
                 float distance = other->x - vehicle->x;
-                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE && !vehicle->canSkipLight)
                 {
                     shouldStop = true;
                     stopLine = other->x - vehicle->rect.w - 5;
@@ -425,7 +429,7 @@ void updateVehicle(Vehicle *vehicle, TrafficLight *lights)
             if (other != vehicle && other->direction == vehicle->direction)
             {
                 float distance = vehicle->x - other->x;
-                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE)
+                if (distance > 0 && distance < MIN_VEHICLE_DISTANCE && !vehicle->canSkipLight)
                 {
                     shouldStop = true;
                     stopLine = other->x + other->rect.w + 5;
